@@ -38,7 +38,10 @@ public class MainActivity extends Activity {
 
         Button button = new Button(this);
         button.setText("ОТКРЫТЬ МЕНЮ");
-        button.setOnClickListener(v -> showMenu());
+        button.setOnClickListener(v -> {
+    android.widget.Toast.makeText(this, "КНОПКА РАБОТАЕТ", android.widget.Toast.LENGTH_SHORT).show();
+    showMenu();
+});
 
         layout.addView(title);
         layout.addView(subtitle);
