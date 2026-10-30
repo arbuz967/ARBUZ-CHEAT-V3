@@ -4,146 +4,284 @@ package com.arbuz.cheat;
 import android.app.Activity;
 import android.os.Bundle;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.view.Gravity;
+import android.view.View;
+import android.view.animation.AlphaAnimation;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Button;
 import android.widget.Switch;
-import android.widget.Toast;
-import android.content.SharedPreferences;
+import android.widget.ScrollView;
 
 public class MainActivity extends Activity {
 
-    LinearLayout layout;
-    SharedPreferences prefs;
+    private LinearLayout layout;
+    private SharedPreferences prefs;
 
-    int bg = Color.rgb(15, 15, 15);
-    int red = Color.RED;
+    private final int BLACK = Color.rgb(8, 8, 8);
+    private final int PANEL = Color.rgb(20, 20, 20);
+    private final int RED = Color.rgb(255, 20, 35);
+    private final int WHITE = Color.WHITE;
+    private String currentScreen = "home";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        getWindow().setStatusBarColor(BLACK);
+        getWindow().setNavigationBarColor(BLACK);
+
         prefs = getSharedPreferences("arbuz_settings", MODE_PRIVATE);
         showHome();
     }
 
+    private int dp(float value) {
+        return (int) (value * getResources()
+                .getDisplayMetrics().density + 0.5f);
+    }
+
+    private GradientDrawable shape(int color, int stroke) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(18));
+        drawable.setStroke(dp(2), stroke);
+        return drawable;
+    }
+
     private TextView makeTitle(String text, int size) {
-        TextView t = new TextView(this);
-        t.setText(text);
-        t.setTextColor(red);
-        t.setTextSize(size);
-        t.setGravity(Gravity.CENTER);
-        return t;
+        TextView title = new TextView(this);
+        title.setText(text);
+        title.setTextColor(RED);
+        title.setTextSize(size);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, dp(12), 0, dp(12));
+        return title;
+    }
+
+    private TextView makeText(String text, int size) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextColor(WHITE);
+        view.setTextSize(size);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(dp(10), dp(10), dp(10), dp(10));
+        return view;
     }
 
     private Button makeButton(String text) {
-        Button b = new Button(this);
-        b.setText(text);
-        return b;
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextColor(RED);
+        button.setTextSize(16);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setAllCaps(false);
+        button.setBackground(shape(PANEL, RED));
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(62));
+
+        params.setMargins(0, dp(9), 0, dp(9));
+        button.setLayoutParams(params);
+
+        return button;
     }
 
-    private void prepareScreen() {
+    private void prepareScreen(String screen) {
+        currentScreen = screen;
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(BLACK);
+
         layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setGravity(Gravity.CENTER);
-        layout.setPadding(30, 30, 30, 30);
-        layout.setBackgroundColor(bg);
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+        layout.setPadding(dp(24), dp(25), dp(24), dp(25));
+        layout.setBackgroundColor(BLACK);
+
+        scroll.addView(layout);
+        setContentView(scroll);
+
+        AlphaAnimation animation =
+                new AlphaAnimation(0.0f, 1.0f);
+        animation.setDuration(250);
+        layout.startAnimation(animation);
+    }
+
+    private void addSpace(int height) {
+        View space = new View(this);
+        layout.addView(space, new LinearLayout.LayoutParams(
+                1, dp(height)));
+    }
+
+    private void addHeader() {
+        addSpace(35);
+        layout.addView(makeTitle("🍉", 55));
+        layout.addView(makeTitle("ARBUZ CHEAT", 31));
+        layout.addView(makeTitle("V3", 27));
+        TextView edition = makeText("ANDROID EDITION", 12);
+        edition.setTextColor(Color.LTGRAY);
+        layout.addView(edition);
+        addSpace(35);
     }
 
     private void showHome() {
-        prepareScreen();
+        prepareScreen("home");
 
-        layout.addView(makeTitle("ARBUZ CHEAT", 32));
-        layout.addView(makeTitle("ANDROID EDITION", 14));
+        addHeader();
 
         Button open = makeButton("ОТКРЫТЬ МЕНЮ");
-        open.setOnClickListener(v -> {
-            Toast.makeText(this, "КНОПКА РАБОТАЕТ",
-                    Toast.LENGTH_SHORT).show();
-            showMenu();
-        });
-
+        open.setOnClickListener(v -> showMenu());
         layout.addView(open);
-        setContentView(layout);
+
+        addSpace(70);
+
+        TextView footer = makeText("ARBUZ CHEAT V3", 12);
+        footer.setTextColor(Color.GRAY);
+        layout.addView(footer);
     }
 
     private void showMenu() {
-        prepareScreen();
-        layout.addView(makeTitle("ARBUZ CHEAT MENU", 26));
+        prepareScreen("menu");
 
-        Button settings = makeButton("НАСТРОЙКИ");
-        settings.setOnClickListener(v -> {
-            Toast.makeText(this, "НАСТРОЙКИ НАЖАТЫ",
-                    Toast.LENGTH_SHORT).show();
-            showSettings();
-        });
+        addHeader();
+        layout.addView(makeTitle("ГЛАВНОЕ МЕНЮ", 23));
 
-        Button profile = makeButton("ПРОФИЛЬ");
-        profile.setOnClickListener(v -> {
-            Toast.makeText(this, "ПРОФИЛЬ НАЖАТ",
-                    Toast.LENGTH_SHORT).show();
-            showProfile();
-        });
+        Button settings = makeButton("⚙  НАСТРОЙКИ");
+        settings.setOnClickListener(v -> showSettings());
 
-        Button back = makeButton("НАЗАД");
+        Button profile = makeButton("👤  ПРОФИЛЬ");
+        profile.setOnClickListener(v -> showProfile());
+
+        Button about = makeButton("ⓘ  ИНФОРМАЦИЯ");
+        about.setOnClickListener(v -> showAbout());
+
+        Button back = makeButton("←  НАЗАД");
         back.setOnClickListener(v -> showHome());
 
         layout.addView(settings);
         layout.addView(profile);
+        layout.addView(about);
         layout.addView(back);
-
-        setContentView(layout);
     }
 
     private void showSettings() {
-        prepareScreen();
+        prepareScreen("settings");
+
+        addSpace(30);
         layout.addView(makeTitle("НАСТРОЙКИ", 28));
+        addSpace(25);
 
-        Switch sound = new Switch(this);
-        sound.setText("ЗВУК");
-        sound.setTextColor(Color.WHITE);
-        sound.setChecked(prefs.getBoolean("sound", true));
-        sound.setOnCheckedChangeListener((button, checked) ->
-                prefs.edit().putBoolean("sound", checked).apply());
-
-        Switch vibration = new Switch(this);
-        vibration.setText("ВИБРАЦИЯ");
-        vibration.setTextColor(Color.WHITE);
-        vibration.setChecked(prefs.getBoolean("vibration", true));
-        vibration.setOnCheckedChangeListener((button, checked) ->
-                prefs.edit().putBoolean("vibration", checked).apply());
-
-        Button back = makeButton("НАЗАД");
-        back.setOnClickListener(v -> showMenu());
+        Switch sound = makeSwitch("ЗВУК", "sound");
+        Switch vibration = makeSwitch("ВИБРАЦИЯ", "vibration");
 
         layout.addView(sound);
         layout.addView(vibration);
-        layout.addView(back);
 
-        setContentView(layout);
+        addSpace(25);
+
+        Button back = makeButton("←  НАЗАД");
+        back.setOnClickListener(v -> showMenu());
+        layout.addView(back);
+    }
+
+    private Switch makeSwitch(String title, String key) {
+        Switch toggle = new Switch(this);
+        toggle.setText(title);
+        toggle.setTextColor(WHITE);
+        toggle.setTextSize(17);
+        toggle.setPadding(dp(12), dp(15), dp(12), dp(15));
+
+        toggle.setChecked(prefs.getBoolean(key, true));
+
+        toggle.setThumbTintList(new ColorStateList(
+                new int[][] {
+                    new int[] { android.R.attr.state_checked },
+                    new int[] {}
+                },
+                new int[] { RED, Color.LTGRAY }
+        ));
+
+        toggle.setTrackTintList(new ColorStateList(
+                new int[][] {
+                    new int[] { android.R.attr.state_checked },
+                    new int[] {}
+                },
+                new int[] {
+                    Color.rgb(130, 20, 30),
+                    Color.DKGRAY
+                }
+        ));
+
+        toggle.setOnCheckedChangeListener((button, checked) ->
+                prefs.edit().putBoolean(key, checked).apply());
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(75));
+
+        params.setMargins(0, dp(8), 0, dp(8));
+        toggle.setLayoutParams(params);
+        toggle.setBackground(shape(PANEL, Color.DKGRAY));
+
+        return toggle;
     }
 
     private void showProfile() {
-        prepareScreen();
+        prepareScreen("profile");
+
+        addSpace(40);
         layout.addView(makeTitle("ПРОФИЛЬ", 28));
+        addSpace(30);
 
-        TextView info = new TextView(this);
-        info.setText("ARBUZ CHEAT V3\nANDROID EDITION\nВерсия: 1.0");
-        info.setTextColor(Color.WHITE);
-        info.setTextSize(17);
-        info.setGravity(Gravity.CENTER);
+        layout.addView(makeTitle("🍉", 60));
+        layout.addView(makeText("ARBUZ CHEAT V3", 21));
+        layout.addView(makeText("ANDROID EDITION", 14));
+        layout.addView(makeText("Версия: 1.0", 16));
 
-        Button back = makeButton("НАЗАД");
+        addSpace(30);
+
+        Button back = makeButton("←  НАЗАД");
         back.setOnClickListener(v -> showMenu());
-
-        layout.addView(info);
         layout.addView(back);
+    }
 
-        setContentView(layout);
+    private void showAbout() {
+        prepareScreen("about");
+
+        addSpace(35);
+        layout.addView(makeTitle("ИНФОРМАЦИЯ", 27));
+        addSpace(20);
+
+        layout.addView(makeTitle("🍉", 55));
+        layout.addView(makeText("ARBUZ CHEAT V3", 22));
+        layout.addView(makeText("Платформа: Android", 16));
+        layout.addView(makeText("Версия: 1.0", 16));
+        layout.addView(makeText("Разработчик: ARBUZ", 16));
+
+        addSpace(30);
+
+        Button back = makeButton("←  НАЗАД");
+        back.setOnClickListener(v -> showMenu());
+        layout.addView(back);
     }
 
     @Override
     public void onBackPressed() {
-        showMenu();
+        if (currentScreen.equals("home")) {
+            super.onBackPressed();
+        } else if (currentScreen.equals("menu")) {
+            showHome();
+        } else {
+            showMenu();
+        }
     }
 }
