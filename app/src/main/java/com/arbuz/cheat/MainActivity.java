@@ -53,39 +53,37 @@ public class MainActivity extends Activity {
     private void showHome() {
         prepareScreen();
 
-        TextView title = makeTitle("ARBUZ CHEAT", 32);
-        TextView subtitle = makeTitle("ANDROID EDITION", 14);
-        subtitle.setTextColor(Color.WHITE);
+        layout.addView(makeTitle("ARBUZ CHEAT", 32));
+        layout.addView(makeTitle("ANDROID EDITION", 14));
 
         Button open = makeButton("ОТКРЫТЬ МЕНЮ");
         open.setOnClickListener(v -> {
             Toast.makeText(this, "КНОПКА РАБОТАЕТ",
-                Toast.LENGTH_SHORT).show();
+                    Toast.LENGTH_SHORT).show();
             showMenu();
         });
 
-        layout.addView(title);
-        layout.addView(subtitle);
         layout.addView(open);
         setContentView(layout);
     }
 
     private void showMenu() {
         prepareScreen();
-
         layout.addView(makeTitle("ARBUZ CHEAT MENU", 26));
 
         Button settings = makeButton("НАСТРОЙКИ");
-        settings.setOnClickListener(v -> showSettings());
-        Toast.makeText(this, "НАСТРОЙКИ НАЖАТЫ", Toast.LENGTH_SHORT).show();
-    showSettings();
-});
+        settings.setOnClickListener(v -> {
+            Toast.makeText(this, "НАСТРОЙКИ НАЖАТЫ",
+                    Toast.LENGTH_SHORT).show();
+            showSettings();
+        });
 
         Button profile = makeButton("ПРОФИЛЬ");
-        profile.setOnClickListener(v -> showProfile());
-Toast.makeText(this, "ПРОФИЛЬ НАЖАТ", Toast.LENGTH_SHORT).show();
-    showProfile();
-});
+        profile.setOnClickListener(v -> {
+            Toast.makeText(this, "ПРОФИЛЬ НАЖАТ",
+                    Toast.LENGTH_SHORT).show();
+            showProfile();
+        });
 
         Button back = makeButton("НАЗАД");
         back.setOnClickListener(v -> showHome());
@@ -99,7 +97,6 @@ Toast.makeText(this, "ПРОФИЛЬ НАЖАТ", Toast.LENGTH_SHORT).show();
 
     private void showSettings() {
         prepareScreen();
-
         layout.addView(makeTitle("НАСТРОЙКИ", 28));
 
         Switch sound = new Switch(this);
@@ -107,14 +104,14 @@ Toast.makeText(this, "ПРОФИЛЬ НАЖАТ", Toast.LENGTH_SHORT).show();
         sound.setTextColor(Color.WHITE);
         sound.setChecked(prefs.getBoolean("sound", true));
         sound.setOnCheckedChangeListener((button, checked) ->
-            prefs.edit().putBoolean("sound", checked).apply());
+                prefs.edit().putBoolean("sound", checked).apply());
 
         Switch vibration = new Switch(this);
         vibration.setText("ВИБРАЦИЯ");
         vibration.setTextColor(Color.WHITE);
         vibration.setChecked(prefs.getBoolean("vibration", true));
         vibration.setOnCheckedChangeListener((button, checked) ->
-            prefs.edit().putBoolean("vibration", checked).apply());
+                prefs.edit().putBoolean("vibration", checked).apply());
 
         Button back = makeButton("НАЗАД");
         back.setOnClickListener(v -> showMenu());
@@ -128,7 +125,6 @@ Toast.makeText(this, "ПРОФИЛЬ НАЖАТ", Toast.LENGTH_SHORT).show();
 
     private void showProfile() {
         prepareScreen();
-
         layout.addView(makeTitle("ПРОФИЛЬ", 28));
 
         TextView info = new TextView(this);
