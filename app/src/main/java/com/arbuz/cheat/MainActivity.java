@@ -77,9 +77,15 @@ public class MainActivity extends Activity {
 
         Button settings = makeButton("НАСТРОЙКИ");
         settings.setOnClickListener(v -> showSettings());
+        Toast.makeText(this, "НАСТРОЙКИ НАЖАТЫ", Toast.LENGTH_SHORT).show();
+    showSettings();
+});
 
         Button profile = makeButton("ПРОФИЛЬ");
         profile.setOnClickListener(v -> showProfile());
+Toast.makeText(this, "ПРОФИЛЬ НАЖАТ", Toast.LENGTH_SHORT).show();
+    showProfile();
+});
 
         Button back = makeButton("НАЗАД");
         back.setOnClickListener(v -> showHome());
