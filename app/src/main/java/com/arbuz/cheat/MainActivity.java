@@ -15,6 +15,16 @@ import android.widget.TextView;
 import android.widget.Button;
 import android.widget.Switch;
 import android.widget.ScrollView;
+import android.provider.Settings;
+import android.text.InputType;
+import android.widget.EditText;
+import android.widget.Toast;
+import org.json.JSONObject;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.OutputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
 
