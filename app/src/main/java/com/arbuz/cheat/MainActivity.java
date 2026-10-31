@@ -48,6 +48,109 @@ public class MainActivity extends Activity {
         showHome();
     }
 
+  private void showKeyScreen() {
+    prepareScreen("key");
+    addHeader();
+
+    layout.addView(makeTitle("АКТИВАЦИЯ", 25));
+    layout.addView(makeText("Введи лицензионный ключ", 16));
+
+    EditText keyInput = new EditText(this);
+    keyInput.setSingleLine(true);
+    keyInput.setHint("Лицензионный ключ");
+    keyInput.setHintTextColor(Color.GRAY);
+    keyInput.setTextColor(WHITE);
+    keyInput.setPadding(dp(15), dp(12), dp(15), dp(12));
+    keyInput.setBackground(shape(PANEL, RED));
+    layout.addView(keyInput, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(60)));
+
+    addSpace(15);
+
+    Button activate = makeButton("АКТИВИРОВАТЬ");
+    layout.addView(activate);
+
+    activate.setOnClickListener(v -> {
+        String key = keyInput.getText().toString().trim();
+
+        if (key.isEmpty()) {
+            Toast.makeText(this, "Введи ключ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        activate.setEnabled(false);
+        activate.setText("ПРОВЕРКА...");
+
+        Executors.newSingleThreadExecutor().execute(() -> {
+            boolean valid = false;
+
+            try {
+                String deviceId = Settings.Secure.getString(
+                        getContentResolver(),
+                        Settings.Secure.ANDROID_ID
+                );
+
+                URL url = new URL(
+                    "https://itktpasdhilihrqckioz.supabase.co/functions/v1/verify-key"
+                );
+
+                HttpURLConnection conn =
+                        (HttpURLConnection) url.openConnection();
+
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("apikey",
+                        "sb_publishable_RMX3aGldGlEyzrL5l4XCCA_L6OWoNzC");
+
+                JSONObject data = new JSONObject();
+                data.put("key", key);
+                data.put("installation_id", deviceId);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(data.toString().getBytes("UTF-8"));
+                }
+
+                int status = conn.getResponseCode();
+
+                java.io.InputStream stream = status >= 200 && status < 300
+                        ? conn.getInputStream()
+                        : conn.getErrorStream();
+
+                java.util.Scanner scanner =
+                        new java.util.Scanner(stream).useDelimiter("\\A");
+
+                String response = scanner.hasNext() ? scanner.next() : "";
+                scanner.close();
+                conn.disconnect();
+
+                JSONObject result = new JSONObject(response);
+                valid = status >= 200 && status < 300
+                        && result.optBoolean("ok", false);
+
+            } catch (Exception e) {
+                valid = false;
+            }
+
+            final boolean success = valid;
+
+            runOnUiThread(() -> {
+                if (success) {
+                    showHome();
+                } else {
+                    activate.setEnabled(true);
+                    activate.setText("АКТИВИРОВАТЬ");
+                    Toast.makeText(this,
+                            "Ключ недействителен или ошибка соединения",
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        });
+    });
+            }
+    
     private int dp(float value) {
         return (int) (value * getResources()
                 .getDisplayMetrics().density + 0.5f);
