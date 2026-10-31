@@ -1,4 +1,3 @@
-
 package com.arbuz.cheat;
 
 import android.app.Activity;
@@ -12,11 +11,18 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
+import android.text.Editable;
+import android.text.TextWatcher;
 import org.json.JSONObject;
+import org.json.JSONArray;
+
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.io.OutputStream;
 import java.util.Scanner;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,12 +30,14 @@ public class MainActivity extends Activity {
 
     private LinearLayout layout;
     private SharedPreferences prefs;
+
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
 
     private final int BLACK = Color.rgb(8, 8, 8);
-    private final int PANEL = Color.rgb(22, 22, 22);
+    private final int PANEL = Color.rgb(20, 20, 20);
     private final int RED = Color.rgb(255, 20, 35);
+    private final int WHITE = Color.WHITE;
 
     private String currentScreen = "activation";
 
@@ -38,6 +46,8 @@ public class MainActivity extends Activity {
 
     private static final String SUPABASE_KEY =
             "sb_publishable_RMX3aGldGlEyzrL5l4XCCA_L6OWoNzC";
+
+    private JSONArray licenseData = new JSONArray();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,15 +59,20 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences(
                 "arbuz_settings", MODE_PRIVATE);
 
-        checkSavedLogin();
+        String savedKey =
+                prefs.getString("license_key", "");
+
+        if (!savedKey.isEmpty()) {
+            checkSavedLicense(savedKey);
+        } else {
+            showKeyScreen();
+        }
     }
 
     private String getInstallationId() {
-        String id = Settings.Secure.getString(
+        return Settings.Secure.getString(
                 getContentResolver(),
                 Settings.Secure.ANDROID_ID);
-
-        return id == null ? "unknown-device" : id;
     }
 
     private JSONObject postRequest(
@@ -66,43 +81,40 @@ public class MainActivity extends Activity {
         URL url = new URL(
                 SUPABASE_URL + "/functions/v1/" + endpoint);
 
-        HttpURLConnection connection =
+        HttpURLConnection conn =
                 (HttpURLConnection) url.openConnection();
 
-        connection.setRequestMethod("POST");
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(15000);
-        connection.setDoOutput(true);
+        conn.setRequestMethod("POST");
+        conn.setConnectTimeout(15000);
+        conn.setReadTimeout(15000);
+        conn.setDoOutput(true);
 
-        connection.setRequestProperty(
+        conn.setRequestProperty(
                 "Content-Type", "application/json");
 
-        connection.setRequestProperty(
+        conn.setRequestProperty(
                 "apikey", SUPABASE_KEY);
 
-        try (OutputStream output =
-                     connection.getOutputStream()) {
-
-            output.write(data.toString().getBytes("UTF-8"));
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(data.toString().getBytes("UTF-8"));
         }
 
-        int status = connection.getResponseCode();
+        int status = conn.getResponseCode();
 
         java.io.InputStream stream =
                 status >= 200 && status < 300
-                        ? connection.getInputStream()
-                        : connection.getErrorStream();
+                        ? conn.getInputStream()
+                        : conn.getErrorStream();
 
         String response;
 
         try (Scanner scanner =
                      new Scanner(stream).useDelimiter("\\A")) {
-
             response = scanner.hasNext()
                     ? scanner.next() : "";
         }
 
-        connection.disconnect();
+        conn.disconnect();
 
         if (status < 200 || status >= 300) {
             throw new Exception("HTTP " + status);
@@ -111,68 +123,35 @@ public class MainActivity extends Activity {
         return new JSONObject(response);
     }
 
-    private JSONObject checkKey(
-            String endpoint, String key) throws Exception {
+    private JSONObject makeAuthRequest(String key)
+            throws Exception {
 
         JSONObject data = new JSONObject();
-
         data.put("key", key);
         data.put("installation_id", getInstallationId());
-
-        return postRequest(endpoint, data);
+        return data;
     }
 
-    private void checkSavedLogin() {
-
-        prepareScreen("checking");
-        addHeader();
-
-        layout.addView(
-                makeTitle("ПРОВЕРКА ДОСТУПА", 22));
-
-        layout.addView(
-                makeText("Подождите...", 15));
-
-        String adminKey =
-                prefs.getString("admin_key", "");
-
-        String licenseKey =
-                prefs.getString("license_key", "");
-
+    private void checkSavedLicense(String key) {
         executor.execute(() -> {
+            boolean valid = false;
 
-            boolean adminOk = false;
-            boolean licenseOk = false;
+            try {
+                JSONObject result = postRequest(
+                        "check-key", makeAuthRequest(key));
 
-            if (!adminKey.isEmpty()) {
-                try {
-                    adminOk = checkKey(
-                            "verify-admin", adminKey)
-                            .optBoolean("admin", false);
-                } catch (Exception ignored) { }
-            }
+                valid = result.optBoolean("ok", false);
+            } catch (Exception ignored) {}
 
-            if (!adminOk && !licenseKey.isEmpty()) {
-                try {
-                    licenseOk = checkKey(
-                            "check-key", licenseKey)
-                            .optBoolean("ok", false);
-                } catch (Exception ignored) { }
-            }
-
-            final boolean a = adminOk;
-            final boolean l = licenseOk;
+            final boolean success = valid;
 
             runOnUiThread(() -> {
-
-                if (a || l) {
+                if (success) {
                     showMenu();
                 } else {
                     prefs.edit()
-                            .remove("admin_key")
                             .remove("license_key")
                             .apply();
-
                     showKeyScreen();
                 }
             });
@@ -180,26 +159,21 @@ public class MainActivity extends Activity {
     }
 
     private void showKeyScreen() {
-
         prepareScreen("activation");
         addHeader();
 
         layout.addView(makeTitle("АКТИВАЦИЯ", 25));
+        layout.addView(makeText(
+                "Введи лицензионный ключ", 16));
 
-        EditText input =
-                makeEditText("Лицензионный ключ");
+        EditText keyInput = makeInput("Лицензионный ключ");
+        layout.addView(keyInput, inputParams());
 
-        layout.addView(input, matchHeight(60));
-
-        Button activate =
-                makeButton("АКТИВИРОВАТЬ");
-
+        Button activate = makeButton("АКТИВИРОВАТЬ");
         layout.addView(activate);
 
         activate.setOnClickListener(v -> {
-
-            String key =
-                    input.getText().toString().trim();
+            String key = keyInput.getText().toString().trim();
 
             if (key.isEmpty()) {
                 toast("Введи ключ");
@@ -210,63 +184,85 @@ public class MainActivity extends Activity {
             activate.setText("ПРОВЕРКА...");
 
             executor.execute(() -> {
-
                 boolean valid = false;
 
                 try {
-                    valid = checkKey(
-                            "verify-key", key)
-                            .optBoolean("ok", false);
-                } catch (Exception ignored) { }
+                    JSONObject result = postRequest(
+                            "verify-key", makeAuthRequest(key));
+
+                    valid = result.optBoolean("ok", false);
+                } catch (Exception ignored) {}
 
                 final boolean success = valid;
 
                 runOnUiThread(() -> {
+                    activate.setEnabled(true);
+                    activate.setText("АКТИВИРОВАТЬ");
 
                     if (success) {
-
                         prefs.edit()
                                 .putString("license_key", key)
-                                .remove("admin_key")
                                 .apply();
-
                         showMenu();
-
                     } else {
-
-                        activate.setEnabled(true);
-                        activate.setText("АКТИВИРОВАТЬ");
-
-                        toast(
-                                "Ключ недействителен или нет соединения");
+                        toast("Ключ недействителен или ошибка соединения");
                     }
                 });
             });
         });
     }
 
-    private void showAdminLogin() {
+    private void showMenu() {
+        prepareScreen("menu");
+        addHeader();
 
+        layout.addView(makeTitle("ГЛАВНОЕ МЕНЮ", 23));
+
+        Button launch = makeButton("▶  ПАНЕЛЬ ПРИЛОЖЕНИЯ");
+        launch.setOnClickListener(v -> showLaunchPanel());
+
+        Button admin = makeButton("♛  АДМИН-ПАНЕЛЬ");
+        admin.setOnClickListener(v -> showAdminLogin());
+
+        Button settings = makeButton("⚙  НАСТРОЙКИ");
+        settings.setOnClickListener(v -> showSettings());
+
+        Button profile = makeButton("👤  ПРОФИЛЬ");
+        profile.setOnClickListener(v -> showProfile());
+
+        Button about = makeButton("ⓘ  ИНФОРМАЦИЯ");
+        about.setOnClickListener(v -> showAbout());
+
+        layout.addView(launch);
+        layout.addView(admin);
+        layout.addView(settings);
+        layout.addView(profile);
+        layout.addView(about);
+    }
+
+    private void showAdminLogin() {
         prepareScreen("admin_login");
         addHeader();
 
-        layout.addView(
-                makeTitle("АДМИН-ДОСТУП", 25));
+        layout.addView(makeTitle("АДМИН-ДОСТУП", 25));
+        layout.addView(makeText(
+                "Введи специальный админ-ключ", 15));
 
-        EditText input =
-                makeEditText("Админ-ключ");
+        EditText adminInput = makeInput("Админ-ключ");
+        layout.addView(adminInput, inputParams());
 
-        layout.addView(input, matchHeight(60));
+        String savedAdmin =
+                prefs.getString("admin_key", "");
 
-        Button enter =
-                makeButton("ПРОВЕРИТЬ ДОСТУП");
+        if (!savedAdmin.isEmpty()) {
+            adminInput.setText(savedAdmin);
+        }
 
+        Button enter = makeButton("ПРОВЕРИТЬ ДОСТУП");
         layout.addView(enter);
 
         enter.setOnClickListener(v -> {
-
-            String key =
-                    input.getText().toString().trim();
+            String key = adminInput.getText().toString().trim();
 
             if (key.isEmpty()) {
                 toast("Введи админ-ключ");
@@ -277,76 +273,55 @@ public class MainActivity extends Activity {
             enter.setText("ПРОВЕРКА...");
 
             executor.execute(() -> {
-
                 boolean valid = false;
 
                 try {
-                    valid = checkKey(
-                            "verify-admin", key)
-                            .optBoolean("admin", false);
-                } catch (Exception ignored) { }
+                    JSONObject result = postRequest(
+                            "verify-admin", makeAuthRequest(key));
+
+                    valid = result.optBoolean("ok", false)
+                            && result.optBoolean("admin", false);
+                } catch (Exception ignored) {}
 
                 final boolean success = valid;
 
                 runOnUiThread(() -> {
-
                     enter.setEnabled(true);
                     enter.setText("ПРОВЕРИТЬ ДОСТУП");
 
                     if (success) {
-
                         prefs.edit()
                                 .putString("admin_key", key)
-                                .remove("license_key")
                                 .apply();
-
                         showAdminPanel();
-
                     } else {
-                        toast("Доступ запрещён");
+                        toast("Админ-доступ не подтверждён");
                     }
                 });
             });
         });
 
-        Button back = makeButton("НАЗАД");
+        Button back = makeButton("← НАЗАД");
         back.setOnClickListener(v -> showMenu());
-
         layout.addView(back);
     }
 
     private void showAdminPanel() {
-
         prepareScreen("admin");
         addHeader();
 
-        layout.addView(
-                makeTitle("АДМИН-ПАНЕЛЬ", 26));
-        Button licenses = makeButton("СПИСОК ЛИЦЕНЗИЙ");
-licenses.setOnClickListener(v -> loadLicenses());
-layout.addView(licenses);
+        layout.addView(makeTitle("АДМИН-ПАНЕЛЬ", 26));
 
-        layout.addView(
-                makeText(
-                        "АДМИН-ДОСТУП ПОДТВЕРЖДЁН",
-                        15));
+        Button licenses =
+                makeButton("СПИСОК ЛИЦЕНЗИЙ");
 
-        layout.addView(
-                makeText(
-                        "Серверная проверка выполнена.",
-                        14));
-
-        layout.addView(
-                makeText(
-                        "Список лицензий будет подключён " +
-                        "через отдельную серверную функцию.",
-                        14));
+        licenses.setOnClickListener(v -> loadLicenses());
+        layout.addView(licenses);
 
         Button logout =
                 makeButton("ВЫЙТИ ИЗ АДМИН-ПАНЕЛИ");
 
         logout.setOnClickListener(v -> {
-
             prefs.edit()
                     .remove("admin_key")
                     .apply();
@@ -356,365 +331,469 @@ layout.addView(licenses);
 
         layout.addView(logout);
 
-        Button back = makeButton("НАЗАД");
-        back.setOnClickListener(v -> showAdminPanel());
-
+        Button back = makeButton("← НАЗАД");
+        back.setOnClickListener(v -> showMenu());
         layout.addView(back);
     }
-    
-private void loadLicenses() {
-    prepareScreen("admin");
-    addHeader();
 
-    layout.addView(makeTitle("СПИСОК ЛИЦЕНЗИЙ", 24));
-
-    TextView status = makeText("Загрузка лицензий...", 15);
-    layout.addView(status);
-
-    Button refresh = makeButton("ОБНОВИТЬ СПИСОК");
-    layout.addView(refresh);
-
-    refresh.setOnClickListener(v -> loadLicenses());
-
-    Button back = makeButton("НАЗАД");
-    back.setOnClickListener(v -> showMenu());
-    layout.addView(back);
-
-    String key = prefs.getString("admin_key", "");
-
-    executor.execute(() -> {
-        try {
-            JSONObject request = new JSONObject();
-            request.put("key", key);
-            request.put("installation_id", getInstallationId());
-
-            JSONObject response =
-                    postRequest("admin-list-licenses", request);
-
-            if (!response.optBoolean("ok", false)) {
-                throw new Exception("Доступ запрещён");
-            }
-
-            org.json.JSONArray licenses =
-                    response.getJSONArray("licenses");
-
-            runOnUiThread(() -> {
-                layout.removeView(status);
-
-                layout.addView(makeText(
-                        "Всего лицензий: " + licenses.length(), 17));
-
-                for (int i = 0; i < licenses.length(); i++) {
-                    JSONObject item = licenses.optJSONObject(i);
-                    if (item == null) continue;
-
-                    String plan = item.optString("plan", "Неизвестно");
-                    String id = item.optString("id", "—");
-                    boolean disabled = item.optBoolean("disabled", false);
-
-                    String state = disabled ? "ОТКЛЮЧЕНА" : "АКТИВНА";
-
-                    String expires = item.isNull("expires_at")
-                            ? "Навсегда"
-                            : item.optString("expires_at");
-
-                    String device = item.optString(
-                            "installation_id", "Не привязано");
-
-                    LinearLayout card = new LinearLayout(this);
-                    card.setOrientation(LinearLayout.VERTICAL);
-                    card.setPadding(dp(12), dp(12), dp(12), dp(12));
-                    card.setBackground(shape(PANEL, RED));
-
-                    LinearLayout.LayoutParams params =
-                            new LinearLayout.LayoutParams(
-                                    LinearLayout.LayoutParams.MATCH_PARENT,
-                                    LinearLayout.LayoutParams.WRAP_CONTENT);
-
-                    params.setMargins(0, dp(7), 0, dp(7));
-                    card.setLayoutParams(params);
-
-                    card.addView(makeText("Лицензия #" + id, 15));
-                    card.addView(makeText("Тариф: " + plan, 14));
-                    card.addView(makeText("Статус: " + state, 14));
-                    card.addView(makeText("Окончание: " + expires, 13));
-                    card.addView(makeText("Устройство: " + device, 12));
-
-                    layout.addView(card);
-                }
-            });
-
-        } catch (Exception e) {
-            runOnUiThread(() -> {
-                status.setText(
-                        "Ошибка загрузки: " + e.getMessage());
-            });
-        }
-    });
-}
-
-
-    private void showMenu() {
-
-        prepareScreen("menu");
+    private void loadLicenses() {
+        prepareScreen("licenses");
         addHeader();
 
-        layout.addView(
-                makeTitle("ГЛАВНОЕ МЕНЮ", 23));
+        layout.addView(makeTitle("ЛИЦЕНЗИИ", 25));
 
-        Button launch =
-                makeButton("ЗАПУСК ПАНЕЛИ");
+        TextView status =
+                makeText("Загрузка лицензий...", 15);
 
-        launch.setOnClickListener(v ->
-                showLaunchPanel());
+        layout.addView(status);
 
-        layout.addView(launch);
+        Button refresh =
+                makeButton("ОБНОВИТЬ СПИСОК");
 
-        Button admin =
-                makeButton("АДМИН-ПАНЕЛЬ");
+        refresh.setOnClickListener(v -> loadLicenses());
+        layout.addView(refresh);
 
-        admin.setOnClickListener(v ->
-                showAdminLogin());
+        Button back = makeButton("← НАЗАД");
+        back.setOnClickListener(v -> showAdminPanel());
+        layout.addView(back);
 
-        layout.addView(admin);
+        String key = prefs.getString("admin_key", "");
 
-        Button settings =
-                makeButton("НАСТРОЙКИ");
+        executor.execute(() -> {
+            try {
+                JSONObject result = postRequest(
+                        "admin-list-licenses",
+                        makeAuthRequest(key));
 
-        settings.setOnClickListener(v ->
-                showSettings());
+                if (!result.optBoolean("ok", false)) {
+                    throw new Exception("Доступ запрещён");
+                }
 
-        layout.addView(settings);
+                JSONArray received =
+                        result.optJSONArray("licenses");
 
-        Button profile =
-                makeButton("ПРОФИЛЬ");
+                if (received == null) {
+                    received = new JSONArray();
+                }
 
-        profile.setOnClickListener(v ->
-                showProfile());
+                final JSONArray data = received;
 
-        layout.addView(profile);
+                runOnUiThread(() -> {
+                    licenseData = data;
+                    showLicenseFilters(data);
+                });
 
-        Button logout =
-                makeButton("ВЫЙТИ ИЗ АККАУНТА");
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        status.setText(
+                                "Ошибка загрузки: " + e.getMessage()));
+            }
+        });
+    }
 
-        logout.setOnClickListener(v -> {
+    private void showLicenseFilters(JSONArray data) {
+        prepareScreen("licenses");
+        addHeader();
 
-            prefs.edit()
-                    .remove("license_key")
-                    .remove("admin_key")
-                    .apply();
+        layout.addView(makeTitle("СПИСОК ЛИЦЕНЗИЙ", 24));
 
-            showKeyScreen();
+        layout.addView(makeText(
+                "Всего записей: " + data.length(), 15));
+
+        EditText search = makeInput("Поиск по ID лицензии");
+        layout.addView(search, inputParams());
+
+        Spinner planFilter = makeSpinner(new String[]{
+                "Все тарифы", "1d", "7d", "30d", "lifetime"
         });
 
-        layout.addView(logout);
+        Spinner statusFilter = makeSpinner(new String[]{
+                "Все статусы", "Активные", "Отключённые"
+        });
+
+        Spinner sortFilter = makeSpinner(new String[]{
+                "Сначала новые", "Сначала старые"
+        });
+
+        layout.addView(planFilter);
+        layout.addView(statusFilter);
+        layout.addView(sortFilter);
+
+        LinearLayout results =
+                new LinearLayout(this);
+
+        results.setOrientation(LinearLayout.VERTICAL);
+        layout.addView(results);
+
+        Runnable applyFilters = () -> {
+            results.removeAllViews();
+
+            ArrayList<JSONObject> filtered =
+                    new ArrayList<>();
+
+            String query = search.getText()
+                    .toString().trim().toLowerCase();
+
+            String plan = planFilter.getSelectedItem()
+                    .toString();
+
+            String state = statusFilter.getSelectedItem()
+                    .toString();
+
+            for (int i = 0; i < data.length(); i++) {
+                JSONObject item = data.optJSONObject(i);
+                if (item == null) continue;
+
+                String id = item.optString("id", "");
+                String itemPlan = item.optString("plan", "");
+                boolean disabled =
+                        item.optBoolean("disabled", false);
+
+                if (!query.isEmpty()
+                        && !id.toLowerCase().contains(query)) {
+                    continue;
+                }
+
+                if (!plan.equals("Все тарифы")
+                        && !itemPlan.equalsIgnoreCase(plan)) {
+                    continue;
+                }
+
+                if (state.equals("Активные") && disabled) {
+                    continue;
+                }
+
+                if (state.equals("Отключённые") && !disabled) {
+                    continue;
+                }
+
+                filtered.add(item);
+            }
+
+            Collections.sort(filtered,
+                    (a, b) -> {
+                        String first =
+                                a.optString("created_at", "");
+
+                        String second =
+                                b.optString("created_at", "");
+
+                        int compare = first.compareTo(second);
+
+                        return sortFilter.getSelectedItemPosition() == 0
+                                ? -compare : compare;
+                    });
+
+            results.addView(makeText(
+                    "Найдено: " + filtered.size(), 15));
+
+            for (JSONObject item : filtered) {
+                addLicenseCard(results, item);
+            }
+        };
+
+        search.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(
+                    CharSequence s, int start, int count, int after) {}
+
+            public void onTextChanged(
+                    CharSequence s, int start, int before, int count) {
+                applyFilters.run();
+            }
+
+            public void afterTextChanged(Editable e) {}
+        });
+
+        planFilter.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view, int position, long id) {
+                        applyFilters.run();
+                    }
+
+                    public void onNothingSelected(
+                            android.widget.AdapterView<?> parent) {}
+                });
+
+        statusFilter.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view, int position, long id) {
+                        applyFilters.run();
+                    }
+
+                    public void onNothingSelected(
+                            android.widget.AdapterView<?> parent) {}
+                });
+
+        sortFilter.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view, int position, long id) {
+                        applyFilters.run();
+                    }
+
+                    public void onNothingSelected(
+                            android.widget.AdapterView<?> parent) {}
+                });
+
+        Button reset = makeButton("СБРОСИТЬ ФИЛЬТРЫ");
+        reset.setOnClickListener(v -> {
+            search.setText("");
+            planFilter.setSelection(0);
+            statusFilter.setSelection(0);
+            sortFilter.setSelection(0);
+            applyFilters.run();
+        });
+
+        layout.addView(reset);
+
+        Button back = makeButton("← НАЗАД");
+        back.setOnClickListener(v -> showAdminPanel());
+        layout.addView(back);
+
+        applyFilters.run();
+    }
+
+    private void addLicenseCard(
+            LinearLayout parent, JSONObject item) {
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(12), dp(12), dp(12), dp(12));
+        card.setBackground(shape(PANEL, RED));
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        params.setMargins(0, dp(7), 0, dp(7));
+        card.setLayoutParams(params);
+
+        String id = item.optString("id", "—");
+        String plan = item.optString("plan", "—");
+        boolean disabled = item.optBoolean("disabled", false);
+
+        String state = disabled
+                ? "ОТКЛЮЧЕНА" : "АКТИВНА";
+
+        String created = item.optString("created_at", "—");
+        String activated = item.optString("activated_at", "—");
+        String expires = item.isNull("expires_at")
+                ? "Навсегда"
+                : item.optString("expires_at", "—");
+
+        String device = item.optString(
+                "installation_id", "Не привязано");
+
+        card.addView(makeText("ID: " + id, 14));
+        card.addView(makeText("Тариф: " + plan, 14));
+        card.addView(makeText("Статус: " + state, 14));
+        card.addView(makeText("Создана: " + created, 12));
+        card.addView(makeText("Активирована: " + activated, 12));
+        card.addView(makeText("Окончание: " + expires, 12));
+        card.addView(makeText("Устройство: " + device, 11));
+
+        parent.addView(card);
+    }
+
+    private void showProfile() {
+        prepareScreen("profile");
+        addHeader();
+
+        layout.addView(makeTitle("МОЙ ПРОФИЛЬ", 26));
+
+        TextView info =
+                makeText("Загрузка информации...", 15);
+
+        layout.addView(info);
+
+        Button refresh = makeButton("ОБНОВИТЬ ПРОФИЛЬ");
+        layout.addView(refresh);
+
+        refresh.setOnClickListener(v -> showProfile());
+
+        Button back = makeButton("← НАЗАД");
+        back.setOnClickListener(v -> showMenu());
+        layout.addView(back);
+
+        String key = prefs.getString("license_key", "");
+
+        executor.execute(() -> {
+            try {
+                JSONObject result = postRequest(
+                        "check-key", makeAuthRequest(key));
+
+                if (!result.optBoolean("ok", false)) {
+                    throw new Exception("Лицензия недействительна");
+                }
+
+                String plan = result.optString("plan", "—");
+                String expires = result.isNull("expires_at")
+                        ? "Навсегда"
+                        : result.optString("expires_at", "—");
+
+                runOnUiThread(() -> {
+                    info.setText(
+                            "СТАТУС: АКТИВНА\n\n" +
+                            "ТАРИФ: " + plan + "\n\n" +
+                            "ОКОНЧАНИЕ: " + expires + "\n\n" +
+                            "ID УСТРОЙСТВА:\n" +
+                            getInstallationId());
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        info.setText(
+                                "Не удалось загрузить профиль:\n" +
+                                e.getMessage()));
+            }
+        });
     }
 
     private void showLaunchPanel() {
-
         prepareScreen("launch");
         addHeader();
 
-        layout.addView(
-                makeTitle("ПАНЕЛЬ ПРИЛОЖЕНИЯ", 23));
+        layout.addView(makeTitle("ПАНЕЛЬ ПРИЛОЖЕНИЯ", 23));
 
-        layout.addView(
-                makeSwitch("ЗВУК", "sound"));
+        layout.addView(makeText(
+                "Настройки приложения", 14));
 
-        layout.addView(
-                makeSwitch("ВИБРАЦИЯ", "vibration"));
+        layout.addView(makeSwitch("ЗВУК", "sound"));
+        layout.addView(makeSwitch("ВИБРАЦИЯ", "vibration"));
+        layout.addView(makeSwitch(
+                "УВЕДОМЛЕНИЯ", "notifications"));
 
-        layout.addView(
-                makeSwitch("УВЕДОМЛЕНИЯ", "notifications"));
-
-        Button back = makeButton("НАЗАД");
+        Button back = makeButton("← НАЗАД");
         back.setOnClickListener(v -> showMenu());
-
         layout.addView(back);
     }
 
     private void showSettings() {
-
         prepareScreen("settings");
         addHeader();
 
-        layout.addView(
-                makeTitle("НАСТРОЙКИ", 25));
+        layout.addView(makeTitle("НАСТРОЙКИ", 28));
 
-        layout.addView(
-                makeSwitch("ЗВУК", "sound"));
+        layout.addView(makeSwitch("ЗВУК", "sound"));
+        layout.addView(makeSwitch("ВИБРАЦИЯ", "vibration"));
+        layout.addView(makeSwitch(
+                "УВЕДОМЛЕНИЯ", "notifications"));
 
-        layout.addView(
-                makeSwitch("ВИБРАЦИЯ", "vibration"));
-
-        layout.addView(
-                makeSwitch("УВЕДОМЛЕНИЯ", "notifications"));
-
-        Button back = makeButton("НАЗАД");
+        Button back = makeButton("← НАЗАД");
         back.setOnClickListener(v -> showMenu());
-
-        layout.addView(back);
-    }
-
-    private void showProfile() {
-
-        prepareScreen("profile");
-        addHeader();
-
-        layout.addView(
-                makeTitle("ПРОФИЛЬ", 26));
-
-        layout.addView(
-                makeTitle("🍉", 55));
-
-        layout.addView(
-                makeText("ARBUZ CHEAT V3", 20));
-
-        layout.addView(
-                makeText("ANDROID EDITION", 14));
-
-        Button back = makeButton("НАЗАД");
-        back.setOnClickListener(v -> showMenu());
-
         layout.addView(back);
     }
 
     private Switch makeSwitch(String title, String key) {
-
         Switch toggle = new Switch(this);
 
         toggle.setText(title);
-        toggle.setTextColor(Color.WHITE);
+        toggle.setTextColor(WHITE);
         toggle.setTextSize(17);
+        toggle.setPadding(
+                dp(12), dp(15), dp(12), dp(15));
 
-        toggle.setChecked(
-                prefs.getBoolean(key, true));
+        toggle.setChecked(prefs.getBoolean(key, true));
 
         toggle.setThumbTintList(new ColorStateList(
-                new int[][] {
-                        new int[] {
-                                android.R.attr.state_checked
-                        },
-                        new int[] {}
+                new int[][]{
+                        new int[]{android.R.attr.state_checked},
+                        new int[]{}
                 },
-                new int[] {
-                        RED, Color.LTGRAY
-                }));
+                new int[]{RED, Color.LTGRAY}
+        ));
 
-        toggle.setOnCheckedChangeListener(
-                (button, checked) ->
-                        prefs.edit()
-                                .putBoolean(key, checked)
-                                .apply());
+        toggle.setTrackTintList(new ColorStateList(
+                new int[][]{
+                        new int[]{android.R.attr.state_checked},
+                        new int[]{}
+                },
+                new int[]{
+                        Color.rgb(130, 20, 30),
+                        Color.DKGRAY
+                }
+        ));
+
+        toggle.setOnCheckedChangeListener((button, checked) ->
+                prefs.edit().putBoolean(key, checked).apply());
 
         LinearLayout.LayoutParams params =
-                matchHeight(65);
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(75));
 
         params.setMargins(0, dp(8), 0, dp(8));
-
         toggle.setLayoutParams(params);
-        toggle.setBackground(shape(PANEL, RED));
+        toggle.setBackground(shape(PANEL, Color.DKGRAY));
 
         return toggle;
     }
 
-    private EditText makeEditText(String hint) {
+    private void showAbout() {
+        prepareScreen("about");
+        addHeader();
 
+        layout.addView(makeTitle("ИНФОРМАЦИЯ", 27));
+        layout.addView(makeText("🍉 ARBUZ CHEAT", 22));
+        layout.addView(makeText("Платформа: Android", 16));
+        layout.addView(makeText("Версия: 4.0", 16));
+        layout.addView(makeText("Разработчик: ARBUZ", 16));
+
+        Button back = makeButton("← НАЗАД");
+        back.setOnClickListener(v -> showMenu());
+        layout.addView(back);
+    }
+
+    private EditText makeInput(String hint) {
         EditText input = new EditText(this);
-
         input.setSingleLine(true);
         input.setHint(hint);
         input.setHintTextColor(Color.GRAY);
-        input.setTextColor(Color.WHITE);
-
+        input.setTextColor(WHITE);
         input.setPadding(
                 dp(15), dp(12), dp(15), dp(12));
-
         input.setBackground(shape(PANEL, RED));
-
         return input;
     }
 
-    private Button makeButton(String text) {
-
-        Button button = new Button(this);
-
-        button.setText(text);
-        button.setTextColor(RED);
-        button.setTextSize(15);
-        button.setTypeface(
-                Typeface.DEFAULT, Typeface.BOLD);
-
-        button.setAllCaps(false);
-        button.setBackground(shape(PANEL, RED));
-
-        LinearLayout.LayoutParams params =
-                matchHeight(60);
-
-        params.setMargins(0, dp(8), 0, dp(8));
-
-        button.setLayoutParams(params);
-
-        return button;
-    }
-
-    private TextView makeTitle(String text, int size) {
-
-        TextView view = new TextView(this);
-
-        view.setText(text);
-        view.setTextColor(RED);
-        view.setTextSize(size);
-
-        view.setTypeface(
-                Typeface.DEFAULT, Typeface.BOLD);
-
-        view.setGravity(Gravity.CENTER);
-
-        view.setPadding(
-                0, dp(12), 0, dp(12));
-
-        return view;
-    }
-
-    private TextView makeText(String text, int size) {
-
-        TextView view = new TextView(this);
-
-        view.setText(text);
-        view.setTextColor(Color.WHITE);
-        view.setTextSize(size);
-        view.setGravity(Gravity.CENTER);
-
-        view.setPadding(
-                dp(10), dp(10), dp(10), dp(10));
-
-        return view;
-    }
-
-    private GradientDrawable shape(
-            int color, int stroke) {
-
-        GradientDrawable drawable =
-                new GradientDrawable();
-
-        drawable.setColor(color);
-        drawable.setCornerRadius(dp(18));
-        drawable.setStroke(dp(2), stroke);
-
-        return drawable;
-    }
-
-    private LinearLayout.LayoutParams matchHeight(
-            int height) {
-
+    private LinearLayout.LayoutParams inputParams() {
         return new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(height));
+                dp(60));
+    }
+
+    private Spinner makeSpinner(String[] values) {
+        Spinner spinner = new Spinner(this);
+
+        ArrayAdapter<String> adapter =
+                new ArrayAdapter<>(
+                        this,
+                        android.R.layout.simple_spinner_item,
+                        values);
+
+        adapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item);
+
+        spinner.setAdapter(adapter);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(55));
+
+        params.setMargins(0, dp(5), 0, dp(5));
+        spinner.setLayoutParams(params);
+
+        return spinner;
     }
 
     private void prepareScreen(String screen) {
-
         currentScreen = screen;
 
         ScrollView scroll = new ScrollView(this);
@@ -722,16 +801,10 @@ private void loadLicenses() {
         scroll.setBackgroundColor(BLACK);
 
         layout = new LinearLayout(this);
-
-        layout.setOrientation(
-                LinearLayout.VERTICAL);
-
-        layout.setGravity(
-                Gravity.CENTER_HORIZONTAL);
-
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
         layout.setPadding(
-                dp(24), dp(20), dp(24), dp(25));
-
+                dp(24), dp(25), dp(24), dp(25));
         layout.setBackgroundColor(BLACK);
 
         scroll.addView(layout);
@@ -739,35 +812,91 @@ private void loadLicenses() {
     }
 
     private void addHeader() {
+        addSpace(20);
+        layout.addView(makeTitle("🍉", 55));
+        layout.addView(makeTitle("ARBUZ CHEAT", 31));
+        layout.addView(makeTitle("V4", 27));
+        layout.addView(makeText("ANDROID EDITION", 12));
+        addSpace(25);
+    }
 
-        layout.addView(makeTitle("🍉", 52));
-        layout.addView(makeTitle("ARBUZ CHEAT", 29));
-        layout.addView(makeTitle("V3", 24));
+    private void addSpace(int height) {
+        View space = new View(this);
 
-        layout.addView(
-                makeText("ANDROID EDITION", 12));
+        layout.addView(space,
+                new LinearLayout.LayoutParams(
+                        1, dp(height)));
     }
 
     private int dp(float value) {
+        return (int) (value * getResources()
+                .getDisplayMetrics().density + 0.5f);
+    }
 
-        return (int) (value *
-                getResources()
-                        .getDisplayMetrics().density
-                + 0.5f);
+    private GradientDrawable shape(int color, int stroke) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(18));
+        drawable.setStroke(dp(2), stroke);
+        return drawable;
+    }
+
+    private TextView makeTitle(String text, int size) {
+        TextView title = new TextView(this);
+        title.setText(text);
+        title.setTextColor(RED);
+        title.setTextSize(size);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, dp(12), 0, dp(12));
+        return title;
+    }
+
+    private TextView makeText(String text, int size) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextColor(WHITE);
+        view.setTextSize(size);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(
+                dp(10), dp(10), dp(10), dp(10));
+        return view;
+    }
+
+    private Button makeButton(String text) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextColor(RED);
+        button.setTextSize(16);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setAllCaps(false);
+        button.setBackground(shape(PANEL, RED));
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(62));
+
+        params.setMargins(0, dp(9), 0, dp(9));
+        button.setLayoutParams(params);
+
+        return button;
     }
 
     private void toast(String message) {
-
         Toast.makeText(
                 this, message, Toast.LENGTH_LONG).show();
     }
 
     @Override
     public void onBackPressed() {
-
-        if ("menu".equals(currentScreen) ||
-                "activation".equals(currentScreen)) {
+        if (currentScreen.equals("activation")
+                || currentScreen.equals("menu")) {
             super.onBackPressed();
+        } else if (currentScreen.equals("licenses")) {
+            showAdminPanel();
+        } else if (currentScreen.equals("admin")) {
+            showMenu();
         } else {
             showMenu();
         }
@@ -775,8 +904,7 @@ private void loadLicenses() {
 
     @Override
     protected void onDestroy() {
-
         super.onDestroy();
         executor.shutdown();
     }
-}
+            }
