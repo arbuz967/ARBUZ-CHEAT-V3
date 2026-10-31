@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(BLACK);
 
         prefs = getSharedPreferences("arbuz_settings", MODE_PRIVATE);
-        showHome();
+        showMenu();
     }
 
   private void showKeyScreen() {
