@@ -74,6 +74,24 @@ public class MainActivity extends Activity {
                 getContentResolver(),
                 Settings.Secure.ANDROID_ID);
     }
+    private String formatDate(String value) {
+    if (value == null || value.isEmpty()
+            || value.equals("null")) {
+        return "—";
+    }
+
+    try {
+        String date = value.substring(0, 19);
+        String[] parts = date.split("T");
+        String[] d = parts[0].split("-");
+        String time = parts[1].substring(0, 5);
+
+        return d[2] + "." + d[1] + "." + d[0]
+                + " " + time;
+    } catch (Exception e) {
+        return value;
+    }
+    
 
     private JSONObject postRequest(
             String endpoint, JSONObject data) throws Exception {
@@ -581,11 +599,12 @@ public class MainActivity extends Activity {
         String state = disabled
                 ? "ОТКЛЮЧЕНА" : "АКТИВНА";
 
-        String created = item.optString("created_at", "—");
-        String activated = item.optString("activated_at", "—");
-        String expires = item.isNull("expires_at")
-                ? "Навсегда"
-                : item.optString("expires_at", "—");
+        String created = formatDate(item.optString("created_at", ""));
+String activated = formatDate(item.optString("activated_at", ""));
+
+String expires = item.isNull("expires_at")
+        ? "Навсегда"
+        : formatDate(item.optString("expires_at", ""));
 
         String device = item.optString(
                 "installation_id", "Не привязано");
