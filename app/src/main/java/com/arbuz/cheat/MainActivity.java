@@ -322,6 +322,9 @@ public class MainActivity extends Activity {
 
         layout.addView(
                 makeTitle("АДМИН-ПАНЕЛЬ", 26));
+        Button licenses = makeButton("СПИСОК ЛИЦЕНЗИЙ");
+licenses.setOnClickListener(v -> loadLicenses());
+layout.addView(licenses);
 
         layout.addView(
                 makeText(
@@ -354,10 +357,102 @@ public class MainActivity extends Activity {
         layout.addView(logout);
 
         Button back = makeButton("НАЗАД");
-        back.setOnClickListener(v -> showMenu());
+        back.setOnClickListener(v -> showAdminPanel());
 
         layout.addView(back);
     }
+    
+private void loadLicenses() {
+    prepareScreen("admin");
+    addHeader();
+
+    layout.addView(makeTitle("СПИСОК ЛИЦЕНЗИЙ", 24));
+
+    TextView status = makeText("Загрузка лицензий...", 15);
+    layout.addView(status);
+
+    Button refresh = makeButton("ОБНОВИТЬ СПИСОК");
+    layout.addView(refresh);
+
+    refresh.setOnClickListener(v -> loadLicenses());
+
+    Button back = makeButton("НАЗАД");
+    back.setOnClickListener(v -> showMenu());
+    layout.addView(back);
+
+    String key = prefs.getString("admin_key", "");
+
+    executor.execute(() -> {
+        try {
+            JSONObject request = new JSONObject();
+            request.put("key", key);
+            request.put("installation_id", getInstallationId());
+
+            JSONObject response =
+                    postRequest("admin-list-licenses", request);
+
+            if (!response.optBoolean("ok", false)) {
+                throw new Exception("Доступ запрещён");
+            }
+
+            org.json.JSONArray licenses =
+                    response.getJSONArray("licenses");
+
+            runOnUiThread(() -> {
+                layout.removeView(status);
+
+                layout.addView(makeText(
+                        "Всего лицензий: " + licenses.length(), 17));
+
+                for (int i = 0; i < licenses.length(); i++) {
+                    JSONObject item = licenses.optJSONObject(i);
+                    if (item == null) continue;
+
+                    String plan = item.optString("plan", "Неизвестно");
+                    String id = item.optString("id", "—");
+                    boolean disabled = item.optBoolean("disabled", false);
+
+                    String state = disabled ? "ОТКЛЮЧЕНА" : "АКТИВНА";
+
+                    String expires = item.isNull("expires_at")
+                            ? "Навсегда"
+                            : item.optString("expires_at");
+
+                    String device = item.optString(
+                            "installation_id", "Не привязано");
+
+                    LinearLayout card = new LinearLayout(this);
+                    card.setOrientation(LinearLayout.VERTICAL);
+                    card.setPadding(dp(12), dp(12), dp(12), dp(12));
+                    card.setBackground(shape(PANEL, RED));
+
+                    LinearLayout.LayoutParams params =
+                            new LinearLayout.LayoutParams(
+                                    LinearLayout.LayoutParams.MATCH_PARENT,
+                                    LinearLayout.LayoutParams.WRAP_CONTENT);
+
+                    params.setMargins(0, dp(7), 0, dp(7));
+                    card.setLayoutParams(params);
+
+                    card.addView(makeText("Лицензия #" + id, 15));
+                    card.addView(makeText("Тариф: " + plan, 14));
+                    card.addView(makeText("Статус: " + state, 14));
+                    card.addView(makeText("Окончание: " + expires, 13));
+                    card.addView(makeText("Устройство: " + device, 12));
+
+                    layout.addView(card);
+                }
+            });
+
+        } catch (Exception e) {
+            runOnUiThread(() -> {
+                status.setText(
+                        "Ошибка загрузки: " + e.getMessage());
+            });
+        }
+    });
+}
+
 
     private void showMenu() {
 
