@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.content.SharedPreferences;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -14,8 +15,8 @@ import android.widget.TextView;
 import android.widget.Button;
 import android.widget.ScrollView;
 import android.widget.EditText;
+import android.widget.Switch;
 import android.widget.Toast;
-import android.provider.Settings;
 
 import org.json.JSONObject;
 
@@ -26,11 +27,14 @@ import java.io.InputStream;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.time.Instant;
+import java.time.Duration;
 
 public class MainActivity extends Activity {
 
     private LinearLayout layout;
     private SharedPreferences prefs;
+
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
 
@@ -87,7 +91,6 @@ public class MainActivity extends Activity {
             );
 
             conn = (HttpURLConnection) url.openConnection();
-
             conn.setRequestMethod("POST");
             conn.setConnectTimeout(15000);
             conn.setReadTimeout(15000);
@@ -100,7 +103,6 @@ public class MainActivity extends Activity {
                     "apikey", SUPABASE_ANON_KEY);
 
             JSONObject body = new JSONObject();
-
             body.put("key", key);
             body.put("installation_id", getInstallationId());
 
@@ -141,7 +143,6 @@ public class MainActivity extends Activity {
     }
 
     private void checkSavedKey(String key) {
-
         prepareScreen("checking");
         addHeader();
 
@@ -152,7 +153,6 @@ public class MainActivity extends Activity {
                 makeText("Пожалуйста, подожди...", 15));
 
         executor.execute(() -> {
-
             boolean valid = false;
 
             try {
@@ -167,12 +167,10 @@ public class MainActivity extends Activity {
             final boolean success = valid;
 
             runOnUiThread(() -> {
-
                 if (isFinishing()) return;
 
                 if (success) {
                     showHome();
-
                 } else {
                     prefs.edit()
                             .remove("license_key")
@@ -191,53 +189,43 @@ public class MainActivity extends Activity {
     }
 
     private void showKeyScreen() {
-
         prepareScreen("key");
         addHeader();
 
         layout.addView(
-                makeTitle("АКТИВАЦИЯ", 25));
+                makeTitle("АКТИВАЦИЯ", 27));
 
         layout.addView(
-                makeText("Введи лицензионный ключ", 16));
-
-        EditText keyInput = new EditText(this);
-
-        keyInput.setSingleLine(true);
-        keyInput.setHint("Лицензионный ключ");
-        keyInput.setHintTextColor(Color.GRAY);
-        keyInput.setTextColor(WHITE);
-
-        keyInput.setPadding(
-                dp(15), dp(12), dp(15), dp(12));
-
-        keyInput.setBackground(
-                shape(PANEL, RED));
-
-        layout.addView(
-                keyInput,
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(60)
-                )
-        );
+                makeText("Введите лицензионный ключ", 15));
 
         addSpace(15);
 
-        Button activate =
-                makeButton("АКТИВИРОВАТЬ");
+        EditText keyInput = new EditText(this);
+        keyInput.setSingleLine(true);
+        keyInput.setTextColor(WHITE);
+        keyInput.setHintTextColor(Color.GRAY);
+        keyInput.setHint("Лицензионный ключ");
+        keyInput.setPadding(
+                dp(15), dp(12), dp(15), dp(12));
+        keyInput.setBackground(shape(PANEL, RED));
 
+        layout.addView(keyInput);
+
+        addSpace(15);
+
+        Button activate = makeButton("АКТИВИРОВАТЬ");
         layout.addView(activate);
 
         activate.setOnClickListener(v -> {
-
-            String key =
-                    keyInput.getText().toString().trim();
+            String key = keyInput.getText()
+                    .toString().trim();
 
             if (key.isEmpty()) {
                 Toast.makeText(
-                        this, "Введи ключ",
-                        Toast.LENGTH_SHORT).show();
+                        this,
+                        "Введите ключ",
+                        Toast.LENGTH_SHORT
+                ).show();
                 return;
             }
 
@@ -245,29 +233,26 @@ public class MainActivity extends Activity {
             activate.setText("ПРОВЕРКА...");
 
             executor.execute(() -> {
-
-                boolean valid = false;
+                boolean success = false;
 
                 try {
                     JSONObject result =
                             requestLicense("verify-key", key);
 
-                    valid = result.optBoolean("ok", false);
+                    success = result.optBoolean("ok", false);
 
                 } catch (Exception ignored) {
                 }
 
-                final boolean success = valid;
+                final boolean valid = success;
 
                 runOnUiThread(() -> {
-
                     if (isFinishing()) return;
 
                     activate.setEnabled(true);
                     activate.setText("АКТИВИРОВАТЬ");
 
-                    if (success) {
-
+                    if (valid) {
                         prefs.edit()
                                 .putString("license_key", key)
                                 .apply();
@@ -275,16 +260,15 @@ public class MainActivity extends Activity {
                         Toast.makeText(
                                 this,
                                 "Ключ активирован",
-                                Toast.LENGTH_SHORT
+                                Toast.LENGTH_LONG
                         ).show();
 
                         showHome();
 
                     } else {
-
                         Toast.makeText(
                                 this,
-                                "Ключ недействителен или нет соединения",
+                                "Ключ недействителен или уже привязан",
                                 Toast.LENGTH_LONG
                         ).show();
                     }
@@ -294,8 +278,8 @@ public class MainActivity extends Activity {
     }
 
     private int dp(float value) {
-        return (int) (value * getResources()
-                .getDisplayMetrics().density + 0.5f);
+        return (int) (value *
+                getResources().getDisplayMetrics().density);
     }
 
     private GradientDrawable shape(
@@ -305,8 +289,11 @@ public class MainActivity extends Activity {
                 new GradientDrawable();
 
         drawable.setColor(color);
-        drawable.setCornerRadius(dp(18));
-        drawable.setStroke(dp(2), stroke);
+        drawable.setCornerRadius(dp(12));
+
+        if (stroke != 0) {
+            drawable.setStroke(dp(1), stroke);
+        }
 
         return drawable;
     }
@@ -314,23 +301,19 @@ public class MainActivity extends Activity {
     private TextView makeTitle(
             String text, int size) {
 
-        TextView title = new TextView(this);
+        TextView view = new TextView(this);
 
-        title.setText(text);
-        title.setTextColor(RED);
-        title.setTextSize(size);
+        view.setText(text);
+        view.setTextColor(RED);
+        view.setTextSize(size);
+        view.setTypeface(
+                Typeface.DEFAULT_BOLD);
 
-        title.setTypeface(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-        );
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(
+                dp(8), dp(10), dp(8), dp(10));
 
-        title.setGravity(Gravity.CENTER);
-
-        title.setPadding(
-                0, dp(12), 0, dp(12));
-
-        return title;
+        return view;
     }
 
     private TextView makeText(
@@ -344,35 +327,26 @@ public class MainActivity extends Activity {
         view.setGravity(Gravity.CENTER);
 
         view.setPadding(
-                dp(10), dp(10), dp(10), dp(10));
+                dp(8), dp(7), dp(8), dp(7));
 
         return view;
     }
 
     private Button makeButton(String text) {
-
         Button button = new Button(this);
 
         button.setText(text);
-        button.setTextColor(RED);
-        button.setTextSize(16);
-
-        button.setTypeface(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-        );
-
+        button.setTextColor(WHITE);
+        button.setTextSize(15);
         button.setAllCaps(false);
-        button.setBackground(shape(PANEL, RED));
+        button.setBackground(shape(RED, 0));
 
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(62)
-                );
+                        -1, dp(52));
 
         params.setMargins(
-                0, dp(9), 0, dp(9));
+                dp(5), dp(7), dp(5), dp(7));
 
         button.setLayoutParams(params);
 
@@ -380,26 +354,19 @@ public class MainActivity extends Activity {
     }
 
     private void prepareScreen(String screen) {
-
         currentScreen = screen;
 
         ScrollView scroll = new ScrollView(this);
-
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(BLACK);
 
         layout = new LinearLayout(this);
-
         layout.setOrientation(
                 LinearLayout.VERTICAL);
 
-        layout.setGravity(
-                Gravity.CENTER_HORIZONTAL);
-
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
         layout.setPadding(
-                dp(24), dp(25), dp(24), dp(25));
-
-        layout.setBackgroundColor(BLACK);
+                dp(20), dp(15), dp(20), dp(20));
 
         scroll.addView(layout);
 
@@ -407,43 +374,32 @@ public class MainActivity extends Activity {
     }
 
     private void addSpace(int height) {
-
         View space = new View(this);
 
         layout.addView(
                 space,
                 new LinearLayout.LayoutParams(
-                        1, dp(height)
-                )
-        );
+                        1, dp(height)));
     }
 
     private void addHeader() {
-
-        addSpace(35);
+        layout.addView(
+                makeTitle("🍉 ARBUZ", 32));
 
         layout.addView(
-                makeTitle("🍉", 55));
+                makeText("ANDROID EDITION", 13));
 
-        layout.addView(
-                makeTitle("ARBUZ CHEAT", 31));
-
-        layout.addView(
-                makeTitle("V3", 27));
-
-        layout.addView(
-                makeText("ANDROID EDITION", 12));
-
-        addSpace(35);
+        addSpace(20);
     }
 
     private void showHome() {
-
         prepareScreen("home");
         addHeader();
 
-        Button open =
-                makeButton("ОТКРЫТЬ МЕНЮ");
+        layout.addView(
+                makeTitle("ЛИЦЕНЗИЯ АКТИВНА", 21));
+
+        Button open = makeButton("ОТКРЫТЬ МЕНЮ");
 
         open.setOnClickListener(v -> showMenu());
 
@@ -451,36 +407,23 @@ public class MainActivity extends Activity {
     }
 
     private void showMenu() {
-
         prepareScreen("menu");
         addHeader();
 
         layout.addView(
                 makeTitle("ГЛАВНОЕ МЕНЮ", 23));
 
-        Button settings =
-                makeButton("НАСТРОЙКИ");
+        Button settings = makeButton("НАСТРОЙКИ");
+        settings.setOnClickListener(v -> showSettings());
 
-        settings.setOnClickListener(
-                v -> showSettings());
+        Button profile = makeButton("ПРОФИЛЬ");
+        profile.setOnClickListener(v -> showProfile());
 
-        Button profile =
-                makeButton("ПРОФИЛЬ");
+        Button about = makeButton("ИНФОРМАЦИЯ");
+        about.setOnClickListener(v -> showAbout());
 
-        profile.setOnClickListener(
-                v -> showProfile());
-
-        Button about =
-                makeButton("ИНФОРМАЦИЯ");
-
-        about.setOnClickListener(
-                v -> showAbout());
-
-        Button back =
-                makeButton("НАЗАД");
-
-        back.setOnClickListener(
-                v -> showHome());
+        Button back = makeButton("НАЗАД");
+        back.setOnClickListener(v -> showHome());
 
         layout.addView(settings);
         layout.addView(profile);
@@ -488,103 +431,201 @@ public class MainActivity extends Activity {
         layout.addView(back);
     }
 
-    private void showSettings() {
-    prepareScreen("settings");
-    addSpace(30);
+    private Switch makeSwitch(
+            String title, String preference) {
 
-    layout.addView(makeTitle("НАСТРОЙКИ", 28));
-    addSpace(25);
+        Switch toggle = new Switch(this);
 
-    layout.addView(makeSwitch("ЗВУК", "sound"));
-    layout.addView(makeSwitch("ВИБРАЦИЯ", "vibration"));
+        toggle.setText(title);
+        toggle.setTextColor(WHITE);
+        toggle.setTextSize(16);
 
-    addSpace(25);
+        toggle.setChecked(
+                prefs.getBoolean(preference, true));
 
-    Button back = makeButton("НАЗАД");
-    back.setOnClickListener(v -> showMenu());
-    layout.addView(back);
+        toggle.setOnCheckedChangeListener(
+                (button, checked) ->
+                        prefs.edit()
+                                .putBoolean(preference, checked)
+                                .apply());
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        -1, dp(55));
+
+        params.setMargins(0, dp(5), 0, dp(5));
+
+        toggle.setLayoutParams(params);
+
+        return toggle;
     }
 
+    private void showSettings() {
         prepareScreen("settings");
-
         addSpace(30);
 
         layout.addView(
                 makeTitle("НАСТРОЙКИ", 28));
 
-        Button back =
-                makeButton("НАЗАД");
+        addSpace(20);
 
-        back.setOnClickListener(
-                v -> showMenu());
+        layout.addView(
+                makeSwitch("ЗВУК", "sound"));
+
+        layout.addView(
+                makeSwitch("ВИБРАЦИЯ", "vibration"));
+
+        addSpace(20);
+
+        Button back = makeButton("НАЗАД");
+        back.setOnClickListener(v -> showMenu());
 
         layout.addView(back);
     }
 
-    private void showProfile() {
-    prepareScreen("profile");
-    addSpace(25);
+    private String maskKey(String key) {
+        if (key == null || key.isEmpty()) {
+            return "Не найден";
+        }
 
-    layout.addView(makeTitle("ПРОФИЛЬ", 28));
-    layout.addView(makeTitle("🍉", 55));
+        if (key.length() <= 8) {
+            return "••••••••";
+        }
 
-    String key = prefs.getString("license_key", "");
-    String maskedKey = key.length() > 8
-            ? key.substring(0, 4) + "••••••••••••" +
-              key.substring(key.length() - 3)
-            : "Не найден";
-
-    layout.addView(makeText("ЛИЦЕНЗИОННЫЙ КЛЮЧ", 14));
-    layout.addView(makeText(maskedKey, 16));
-
-    addSpace(10);
-    layout.addView(makeText("ТАРИФ", 14));
-    layout.addView(makeTitle("LIFETIME", 23));
-
-    layout.addView(makeText("СРОК ДЕЙСТВИЯ", 14));
-    layout.addView(makeTitle("БЕССРОЧНО", 22));
-
-    layout.addView(makeText("СТАТУС: АКТИВЕН", 17));
-    layout.addView(makeText("Устройство: привязано", 15));
-
-    Button back = makeButton("НАЗАД");
-    back.setOnClickListener(v -> showMenu());
-    layout.addView(back);
+        return key.substring(0, 4)
+                + "••••••••••••"
+                + key.substring(key.length() - 3);
     }
 
-        prepareScreen("profile");
+    private String getRemainingTime(String expiry) {
+        try {
+            Instant end = Instant.parse(expiry);
 
-        addSpace(40);
+            Duration remaining =
+                    Duration.between(
+                            Instant.now(), end);
+
+            if (remaining.isNegative()
+                    || remaining.isZero()) {
+                return "Истёк";
+            }
+
+            long days = remaining.toDays();
+            long hours = remaining.toHours() % 24;
+            long minutes = remaining.toMinutes() % 60;
+
+            return days + " дн. "
+                    + hours + " ч. "
+                    + minutes + " мин.";
+
+        } catch (Exception e) {
+            return "Не удалось определить";
+        }
+    }
+
+    private void showProfile() {
+        prepareScreen("profile");
+        addSpace(25);
 
         layout.addView(
                 makeTitle("ПРОФИЛЬ", 28));
 
         layout.addView(
-                makeTitle("ARBUZ CHEAT V3", 21));
+                makeTitle("🍉", 45));
+
+        String key =
+                prefs.getString("license_key", "");
 
         layout.addView(
-                makeText("ANDROID EDITION", 14));
+                makeText("ЛИЦЕНЗИОННЫЙ КЛЮЧ", 14));
 
-        Button back =
-                makeButton("НАЗАД");
+        layout.addView(
+                makeText(maskKey(key), 16));
 
-        back.setOnClickListener(
-                v -> showMenu());
+        TextView info =
+                makeText("Проверяем лицензию...", 16);
+
+        layout.addView(info);
+
+        Button back = makeButton("НАЗАД");
+        back.setOnClickListener(v -> showMenu());
 
         layout.addView(back);
+
+        if (key.isEmpty()) {
+            info.setText("Ключ не найден");
+            return;
+        }
+
+        executor.execute(() -> {
+            try {
+                JSONObject result =
+                        requestLicense("check-key", key);
+
+                boolean ok =
+                        result.optBoolean("ok", false);
+
+                String plan =
+                        result.optString("plan", "unknown");
+
+                String expiry =
+                        result.isNull("expires_at")
+                        ? ""
+                        : result.optString("expires_at", "");
+
+                String term;
+
+                if ("lifetime".equalsIgnoreCase(plan)) {
+                    term = "Бессрочно";
+                } else if (!expiry.isEmpty()) {
+                    term = getRemainingTime(expiry);
+                } else {
+                    term = "Не указан";
+                }
+
+                String planName =
+                        "lifetime".equalsIgnoreCase(plan)
+                        ? "LIFETIME"
+                        : plan.toUpperCase();
+
+                String status =
+                        ok ? "Активен" : "Неактивен";
+
+                String device =
+                        ok ? "Привязано" : "Не подтверждено";
+
+                String finalInfo =
+                        "Тариф: " + planName
+                        + "\nСрок: " + term
+                        + "\nСтатус: " + status
+                        + "\nУстройство: " + device;
+
+                runOnUiThread(() -> {
+                    if (!isFinishing()) {
+                        info.setText(finalInfo);
+                    }
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    if (!isFinishing()) {
+                        info.setText(
+                                "Не удалось проверить лицензию");
+                    }
+                });
+            }
+        });
     }
 
     private void showAbout() {
-
         prepareScreen("about");
-
         addSpace(35);
 
         layout.addView(
                 makeTitle("ИНФОРМАЦИЯ", 27));
 
         layout.addView(
-                makeText("ARBUZ CHEAT V3", 22));
+                makeText("ARBUZ", 22));
 
         layout.addView(
                 makeText("Платформа: Android", 16));
@@ -592,31 +633,25 @@ public class MainActivity extends Activity {
         layout.addView(
                 makeText("Версия: 1.0", 16));
 
-        Button back =
-                makeButton("НАЗАД");
-
-        back.setOnClickListener(
-                v -> showMenu());
+        Button back = makeButton("НАЗАД");
+        back.setOnClickListener(v -> showMenu());
 
         layout.addView(back);
     }
 
     @Override
     public void onBackPressed() {
+        if (currentScreen.equals("profile")
+                || currentScreen.equals("settings")
+                || currentScreen.equals("about")) {
 
-        if (currentScreen.equals("key")
-                || currentScreen.equals("checking")) {
-            return;
-        }
-
-        if (currentScreen.equals("home")) {
-            super.onBackPressed();
+            showMenu();
 
         } else if (currentScreen.equals("menu")) {
             showHome();
 
         } else {
-            showMenu();
+            super.onBackPressed();
         }
     }
 
