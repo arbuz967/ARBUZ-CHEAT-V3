@@ -744,10 +744,9 @@ public class MainActivity extends Activity {
         layout.addView(makeText("Платформа: Android", 16));
         layout.addView(makeText("Версия: 4.0", 16));
         layout.addView(makeText("Разработчик: ARBUZ", 16));
+        layout.addView(makeText("КАНАЛ: @TG_beta_oxide",16));
 
-        Button back = makeButton("← НАЗАД");
-        back.setOnClickListener(v -> showMenu());
-        layout.addView(back);
+    
     }
 
     private EditText makeInput(String hint) {
