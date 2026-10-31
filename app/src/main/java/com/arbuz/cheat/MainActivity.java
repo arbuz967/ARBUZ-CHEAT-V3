@@ -332,6 +332,14 @@ public class MainActivity extends Activity {
 
         Button licenses =
                 makeButton("СПИСОК ЛИЦЕНЗИЙ");
+        
+        Button disableAll =
+        makeButton("ОТКЛЮЧИТЬ ВСЕ КЛЮЧИ");
+
+disableAll.setOnClickListener(
+        v -> disableAllLicenses());
+
+layout.addView(disableAll);
 
         licenses.setOnClickListener(v -> loadLicenses());
         layout.addView(licenses);
@@ -352,6 +360,46 @@ public class MainActivity extends Activity {
         Button back = makeButton("← НАЗАД");
         back.setOnClickListener(v -> showMenu());
         layout.addView(back);
+    }
+    private void disableAllLicenses() {
+    new android.app.AlertDialog.Builder(this)
+            .setTitle("ОТКЛЮЧИТЬ ВСЕ КЛЮЧИ?")
+            .setMessage(
+                    "Все обычные лицензии будут отключены. " +
+                    "Администраторские ключи останутся рабочими. " +
+                    "Продолжить?"
+            )
+            .setNegativeButton("ОТМЕНА", null)
+            .setPositiveButton("ОТКЛЮЧИТЬ", (dialog, which) -> {
+
+                String key = prefs.getString("admin_key", "");
+
+                executor.execute(() -> {
+                    try {
+                        JSONObject result = postRequest(
+                                "admin-disable-all-licenses",
+                                makeAuthRequest(key)
+                        );
+
+                        if (!result.optBoolean("ok", false)) {
+                            throw new Exception("Доступ запрещён");
+                        }
+
+                        int count =
+                                result.optInt("disabled_count", 0);
+
+                        runOnUiThread(() -> {
+                            toast("Отключено лицензий: " + count);
+                            showAdminPanel();
+                        });
+
+                    } catch (Exception e) {
+                        runOnUiThread(() ->
+                                toast("Ошибка: " + e.getMessage()));
+                    }
+                });
+            })
+            .show();
     }
 
     private void loadLicenses() {
