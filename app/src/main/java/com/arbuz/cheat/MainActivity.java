@@ -61,7 +61,7 @@ public class MainActivity extends Activity {
         showKeyScreen();
     }
 
-    private String getDeviceId() {
+    private String getInstallationId() {
         return Settings.Secure.getString(
                 getContentResolver(),
                 Settings.Secure.ANDROID_ID
@@ -165,7 +165,7 @@ public class MainActivity extends Activity {
                 try {
                     JSONObject data = new JSONObject();
                     data.put("key", key);
-                    data.put("installation_id", getDeviceId());
+                    data.put("installation_id", getInstallationId());
 
                     JSONObject result =
                             postRequest("verify-key", data);
