@@ -606,7 +606,7 @@ layout.addView(disableAll);
                             android.widget.AdapterView<?> parent) {}
                 });
 
-        Button reset = makeButton("СБРОСИТЬ ФИЛЬТРЫ");
+        Button reset = makeButton("ОЧИСТИТЬ ПОИСК И ФИЛЬТРЫ");
         reset.setOnClickListener(v -> {
             search.setText("");
             planFilter.setSelection(0);
