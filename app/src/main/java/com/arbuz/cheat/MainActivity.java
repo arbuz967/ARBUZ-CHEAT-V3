@@ -489,6 +489,21 @@ public class MainActivity extends Activity {
     }
 
     private void showSettings() {
+    prepareScreen("settings");
+    addSpace(30);
+
+    layout.addView(makeTitle("НАСТРОЙКИ", 28));
+    addSpace(25);
+
+    layout.addView(makeSwitch("ЗВУК", "sound"));
+    layout.addView(makeSwitch("ВИБРАЦИЯ", "vibration"));
+
+    addSpace(25);
+
+    Button back = makeButton("НАЗАД");
+    back.setOnClickListener(v -> showMenu());
+    layout.addView(back);
+    }
 
         prepareScreen("settings");
 
@@ -507,6 +522,35 @@ public class MainActivity extends Activity {
     }
 
     private void showProfile() {
+    prepareScreen("profile");
+    addSpace(25);
+
+    layout.addView(makeTitle("ПРОФИЛЬ", 28));
+    layout.addView(makeTitle("🍉", 55));
+
+    String key = prefs.getString("license_key", "");
+    String maskedKey = key.length() > 8
+            ? key.substring(0, 4) + "••••••••••••" +
+              key.substring(key.length() - 3)
+            : "Не найден";
+
+    layout.addView(makeText("ЛИЦЕНЗИОННЫЙ КЛЮЧ", 14));
+    layout.addView(makeText(maskedKey, 16));
+
+    addSpace(10);
+    layout.addView(makeText("ТАРИФ", 14));
+    layout.addView(makeTitle("LIFETIME", 23));
+
+    layout.addView(makeText("СРОК ДЕЙСТВИЯ", 14));
+    layout.addView(makeTitle("БЕССРОЧНО", 22));
+
+    layout.addView(makeText("СТАТУС: АКТИВЕН", 17));
+    layout.addView(makeText("Устройство: привязано", 15));
+
+    Button back = makeButton("НАЗАД");
+    back.setOnClickListener(v -> showMenu());
+    layout.addView(back);
+    }
 
         prepareScreen("profile");
 
